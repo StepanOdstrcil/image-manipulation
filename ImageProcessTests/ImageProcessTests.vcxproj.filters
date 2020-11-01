@@ -5,6 +5,6 @@
     <ClCompile Include="Image.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Image.h" />
+    <ClInclude Include="Image.hpp" />
   </ItemGroup>
 </Project>

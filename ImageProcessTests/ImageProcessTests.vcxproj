@@ -127,7 +127,7 @@
     <ClCompile Include="Image.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Image.h" />
+    <ClInclude Include="Image.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

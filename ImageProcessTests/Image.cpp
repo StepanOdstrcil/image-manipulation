@@ -1,12 +1,16 @@
+#include "Image.hpp"
+
 #include <algorithm>
+#include <vector>
 
-#include "Image.h"
+#include <iostream>
 
-Image::Image() : width(0), height(0), pixels(nullptr)
+
+Image::Image() : width(0), height(0), pixels(nullptr), pixelCount(0)
 {
 }
 
-Image::Image(const uint32_t& w, const uint32_t& h, const std::string header) : width(w), height(h), originalHeader(header)
+Image::Image(const uint32_t& w, const uint32_t& h, const std::string header) : width(w), height(h), pixelCount(w * h), originalHeader(header)
 {
 	uint32_t pixelCount = w * h;
 	pixels = new RGB[pixelCount];
@@ -30,12 +34,12 @@ Image::RGB& Image::operator[](const unsigned int& i)
 	return pixels[i];
 }
 
-void Image::SaveAsBlackWhite() const
+void Image::SaveAsBlackWhite(const char* fileName) const
 {
 	RGB* newPixels = nullptr;
 
 	std::ofstream ofs;
-	ofs.open("BlackAndWhite.bmp", std::ios::binary | std::ios::out);
+	ofs.open(fileName, std::ios::binary | std::ios::out);
 
 	try
 	{
@@ -45,48 +49,66 @@ void Image::SaveAsBlackWhite() const
 		if (ofs.fail())
 			throw("Cannot open file");
 
-		// ######## Generating new array ########
-		// Create new pixel array
-		uint32_t pixelCount = width * height;
+		std::vector<uint8_t> lig = std::vector<uint8_t>(pixelCount);
+		for (int i = 0; i < pixelCount; i++)
+		{
+			lig[i] = pixels[i].lightness;
+		}
 
-		uint8_t pixelLightness;
+		std::sort(lig.begin(), lig.end());
+
+		std::vector<uint8_t>::iterator ligtnessPixelsMultisetIterator = lig.begin();
+		std::advance(ligtnessPixelsMultisetIterator, (uint32_t)(pixelCount * 0.70f));
+
+		uint8_t treshHold = *ligtnessPixelsMultisetIterator;
+
 		newPixels = new RGB[pixelCount];
 		for (int i = 0; i < pixelCount; i++)
 		{
-			pixelLightness = pixels[i].GetLightness();
-			if (pixelLightness > 200)
+			if (pixels[i].lightness > treshHold)
 			{
 				newPixels[i] = RGB(255);
 			}
-
-			//// Pastel red
-			//else if (pixelLightness > 150)
-			//{
-			//	newPixels[i] = RGB(255, 41, 38);
-			//}
-
-			//else if (pixelLightness > 160)
-			//{
-			//	newPixels[i] = RGB(200);
-			//}
-			//else if (pixelLightness > 120)
-			//{
-			//	newPixels[i] = RGB(150);
-			//}
-			//else if (pixelLightness > 80)
-			//{
-			//	newPixels[i] = RGB(100);
-			//}
-			//else if (pixelLightness > 40)
-			//{
-			//	newPixels[i] = RGB(50);
-			//}
 			else
 			{
 				newPixels[i] = RGB(0);
 			}
 		}
-		// ####### /Generating new array/ #######
+
+		//for (int i = 0; i < pixelCount; i++)
+		//{
+		//	if (pixels[i].lightness > 200)
+		//	{
+		//		newPixels[i] = RGB(255);
+		//	}
+
+		//	//// Pastel red
+		//	//else if (pixels[i].lightness > 150)
+		//	//{
+		//	//	newPixels[i] = RGB(255, 41, 38);
+		//	//}
+
+		//	//else if (pixels[i].lightness > 160)
+		//	//{
+		//	//	newPixels[i] = RGB(200);
+		//	//}
+		//	//else if (pixels[i].lightness > 120)
+		//	//{
+		//	//	newPixels[i] = RGB(150);
+		//	//}
+		//	//else if (pixels[i].lightness > 80)
+		//	//{
+		//	//	newPixels[i] = RGB(100);
+		//	//}
+		//	//else if (pixels[i].lightness > 40)
+		//	//{
+		//	//	newPixels[i] = RGB(50);
+		//	//}
+		//	else
+		//	{
+		//		newPixels[i] = RGB(0);
+		//	}
+		//}
 
 		// Write to file
 		ofs << originalHeader;
@@ -95,33 +117,92 @@ void Image::SaveAsBlackWhite() const
 		int ignore = 4 - (width * 3 % 4);
 		ignore = ignore == 4 ? 0 : ignore;
 
-		RGB* pix;
-		for (int h = 0; h < height; h++)
-		{
-			for (int w = 0; w < width; w++)
-			{
-				pix = &(newPixels[h * width + w]);
-				ofs << pix->b;
-				ofs << pix->g;
-				ofs << pix->r;
-			}
+		float onePixelPercentageIncrement = 101.f / pixelCount;
 
-			for (int i = 0; i < ignore; i++)
-			{
-				ofs << '0';
-			}
-		}
+		float progress = 0.f;
+		uint32_t progressPercentage = 0;
+
+		WritePixels(ofs, newPixels, ignore);
 
 		ofs.close();
 	}
-	catch (const char* err)
+	catch (const std::exception& ex)
 	{
-		fprintf(stderr, "%s\n", err);
+		fprintf(stderr, "%s\n", ex.what());
 		ofs.close();
 	}
 
 	if (newPixels != nullptr)
 		delete[] newPixels;
+}
+
+void Image::SaveAsQuantized(const char* fileName) const
+{
+	std::ofstream ofs;
+	ofs.open(fileName, std::ios::binary | std::ios::out);
+
+	RGB* newPixels = nullptr;
+	try
+	{
+		if (pixels == nullptr)
+			throw("No image loaded");
+
+		if (ofs.fail())
+			throw("Cannot open file");
+
+		// USE:
+		// https://stackoverflow.com/questions/29244307/effective-gif-image-color-quantization
+		RGB* pix = nullptr;
+		newPixels = new RGB[pixelCount];
+		for (int i = 0; i < pixelCount; i++)
+		{
+			pix = &(pixels[i]);
+			newPixels[i] = RGB(pix->r - pix->r % 32, pix->g - pix->g % 32, pix->b - pix->b % 32);
+		}
+
+		// Write to file
+		ofs << originalHeader;
+
+		// Ignore bytes to round up to 4 bytes per row
+		int ignore = 4 - (width * 3 % 4);
+		ignore = ignore == 4 ? 0 : ignore;
+
+		WritePixels(ofs, newPixels, ignore);
+
+		ofs.close();
+	}
+	catch (const std::exception& ex)
+	{
+		fprintf(stderr, "%s\n", ex.what());
+		ofs.close();
+	}
+
+	if (newPixels != nullptr)
+	{
+		delete[] newPixels;
+	}
+}
+
+void Image::WritePixels(std::ofstream& ofs, RGB* const writePixels, const int ignore) const
+{
+	uint32_t bufferIndex = 0;
+	std::string buffer = std::string((size_t)3 * (size_t)pixelCount + (size_t)height * (size_t)ignore, '0');
+
+	RGB* pix;
+	for (uint32_t h = 0; h < height; h++)
+	{
+		for (uint32_t w = 0; w < width; w++)
+		{
+			pix = writePixels + h * width + w;
+			buffer[bufferIndex++] = pix->b;
+			buffer[bufferIndex++] = pix->g;
+			buffer[bufferIndex++] = pix->r;
+		}
+
+		bufferIndex += ignore;
+	}
+
+	ofs << buffer;
 }
 
 Image* Image::FromBMP(const char* fileName)
@@ -134,11 +215,6 @@ Image* Image::FromBMP(const char* fileName)
 	{
 		if (ifs.fail())
 			throw("Can't open input file");
-
-		// TEST
-		//std::string fileBytes(54, ' ');
-		//ifs.read(&fileBytes[0], 54);
-		//ifs.seekg(0);
 
 		// Read file into string
 		std::string fileType(2, ' ');
@@ -194,14 +270,13 @@ Image* Image::FromBMP(const char* fileName)
 				src->pixels[i].r = pix[2];
 				src->pixels[i].g = pix[1];
 				src->pixels[i].b = pix[0];
+				src->pixels[i].lightness = Image::RGB::GetLightness(pix[2], pix[1], pix[0]);
 			}
 
 			ifs.ignore(ignore);
 		}
 
 		ifs.close();
-
-		//src->fileBytes = fileBytes;
 	}
 	catch (const char* err)
 	{

@@ -1,6 +1,8 @@
+#define WIN32_LEAN_AND_MEAN
+
 #include <iostream>
 
-#include "Image.h"
+#include "Image.hpp"
 
 #ifdef min
 #undef min
@@ -10,6 +12,7 @@
 #undef max
 #endif
 
+
 int main()
 {
 	Image* im = Image::FromBMP("obrazek.bmp");
@@ -17,7 +20,9 @@ int main()
 	if (im == nullptr)
 		return 1;
 
-	im->SaveAsBlackWhite();
+	//im->SaveAsBlackWhite("obrazek-BaW.bmp");
+
+	im->SaveAsQuantized("obrazek-Q.bmp");
 
 	//Image::RGB* pix = nullptr;
 	//for (int h = 0; h < im->h; h++)
@@ -32,6 +37,8 @@ int main()
 
 	// Konec
 	delete im;
-	//std::getchar();
+
+	//std::cout << "End... ";
+	//std::cin.get();
 	return 0;
 }
